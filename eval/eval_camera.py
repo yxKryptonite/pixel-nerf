@@ -15,7 +15,10 @@ from data import get_split_dataset
 from render import NeRFRenderer
 from model import make_model
 from scipy.interpolate import CubicSpline
+import torchvision.transforms as T
 import tqdm
+import imageio.v2 as imageio
+from PIL import Image
 
 
 def extra_args(parser):
@@ -32,7 +35,7 @@ def extra_args(parser):
         "--source",
         "-P",
         type=str,
-        default="64",
+        default="1",
         help="Source view(s) in image, in increasing order. -1 to do random",
     )
     parser.add_argument(
@@ -56,6 +59,12 @@ def extra_args(parser):
         default=0.0,
         help="Distance of camera from origin, default is average of z_far, z_near of dataset (only for non-DTU)",
     )
+    parser.add_argument(
+        "--img_path",
+        type=str,
+        default='my_input/IMG_4528_normalize.png',
+        help="image path",
+    )
     parser.add_argument("--fps", type=int, default=30, help="FPS of video")
     return parser
 
@@ -65,25 +74,21 @@ args.resume = True
 
 device = util.get_cuda(args.gpu_id[0])
 
-dset = get_split_dataset(
-    args.dataset_format, args.datadir, want_split=args.split, training=False
-)
+image_to_tensor = util.get_image_to_tensor_balanced()
+images = imageio.imread(args.img_path)[..., :3]
+images = image_to_tensor(images).unsqueeze(0).to(device=device)
+print(images.shape)
 
-data = dset[args.subset] # 0 for 03001627/f5643e3b42fe5144c9f41f411b2bb452
-data_path = data["path"]
-print("Data instance loaded:", data_path)
-
-images = data["images"]  # (NV, 3, H, W)
-
-poses = data["poses"]  # (NV, 4, 4)
-focal = data["focal"]
+poses = [torch.eye(4) for _ in range(int(args.source)+1)]
+poses = torch.stack(poses, dim=0)
+focal = 119.4256
 if isinstance(focal, float):
     # Dataset implementations are not consistent about
     # returning float or scalar tensor in case of fx=fy
     focal = torch.tensor(focal, dtype=torch.float32)
 focal = focal[None]
 
-c = data.get("c")
+c = None
 print(f"c is {c}")
 if c is not None:
     c = c.to(device=device).unsqueeze(0)
@@ -104,21 +109,20 @@ if args.scale != 1.0:
 net = make_model(conf["model"]).to(device=device)
 net.load_weights(args)
 
-print(f"lindisp: {dset.lindisp}")
 renderer = NeRFRenderer.from_conf(
-    conf["renderer"], lindisp=dset.lindisp, eval_batch_size=args.ray_batch_size,
+    conf["renderer"], lindisp=False, eval_batch_size=args.ray_batch_size,
 ).to(device=device)
 
 render_par = renderer.bind_parallel(net, args.gpu_id, simple_output=True).eval()
 
 # Get the distance from camera to origin
-z_near = dset.z_near
-z_far = dset.z_far
+z_near = 1.2
+z_far = 4.0
 print(f"z_near is {z_near}, z_far is {z_far}")
 
 print("Generating rays")
 
-dtu_format = hasattr(dset, "sub_format") and dset.sub_format == "dtu"
+dtu_format = False
 
 if dtu_format:
     print("Using DTU camera trajectory")
@@ -190,7 +194,7 @@ focal = focal.to(device=device)
 source = torch.tensor(list(map(int, args.source.split())), dtype=torch.long)
 NS = len(source)
 random_source = NS == 1 and source[0] == -1
-assert not (source >= NV).any()
+# assert not (source >= NV).any()
 
 if renderer.n_coarse < 64:
     # Ensure decent sampling resolution
@@ -204,15 +208,30 @@ with torch.no_grad():
     else:
         src_view = source
 
-    cam_pose = torch.eye(4)
+    print(src_view)
+    cam_pose = torch.eye(4, dtype=torch.float32)
     cam_pose[2, -1] = radius
     poses[src_view] = cam_pose
-    print(poses[src_view])
+    
+    cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+         [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
+         [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
+         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
+    
     print(focal, c)
-    print(poses[src_view].shape)
+    # tmp_pose = poses[src_view].unsqueeze(0).to(device=device)
+    tmp_pose = cam_pose.unsqueeze(0)
+    print(tmp_pose.shape)
+    import time
+    time.sleep(5)
+    
+    image = Image.open(args.img_path).convert("RGB")
+    image = T.Resize(64)(image)
+    image = image_to_tensor(image).to(device=device)
+    
     net.encode(
-        images[src_view].unsqueeze(0),
-        poses[src_view].unsqueeze(0).to(device=device),
+        image.unsqueeze(0),
+        cam_pose.unsqueeze(0),
         focal,
         c=c,
     )
@@ -229,6 +248,8 @@ with torch.no_grad():
     # rgb_fine (V*H*W, 3)
 
     frames = rgb_fine.view(-1, H, W, 3)
+    
+exit(0)
 
 print("Writing video")
 vid_name = "{:04}".format(args.subset)
@@ -245,7 +266,7 @@ imageio.mimwrite(
     vid_path, (frames.cpu().numpy() * 255).astype(np.uint8), fps=args.fps, quality=8
 )
 
-img_np = (data["images"][src_view].permute(0, 2, 3, 1) * 0.5 + 0.5).numpy()
+img_np = (images.permute(0, 2, 3, 1) * 0.5 + 0.5).numpy()
 img_np = (img_np * 255).astype(np.uint8)
 img_np = np.hstack((*img_np,))
 imageio.imwrite(viewimg_path, img_np)
