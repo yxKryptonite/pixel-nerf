@@ -41,17 +41,17 @@ def extra_args(parser):
         help="Output image size, either 1 or 2 number (w h)",
     )
 
-    parser.add_argument("--focal", type=float, default=131.25, help="Focal length")
+    parser.add_argument("--focal", type=float, default=119.4256, help="Focal length")
 
-    parser.add_argument("--radius", type=float, default=1.3, help="Camera distance")
-    parser.add_argument("--z_near", type=float, default=0.8)
-    parser.add_argument("--z_far", type=float, default=1.8)
+    parser.add_argument("--radius", type=float, default=2.6, help="Camera distance")
+    parser.add_argument("--z_near", type=float, default=1.2)
+    parser.add_argument("--z_far", type=float, default=4.0)
 
     parser.add_argument(
         "--elevation",
         "-e",
         type=float,
-        default=0.0,
+        default=-10.0,
         help="Elevation angle (negative is above)",
     )
     parser.add_argument(
@@ -97,17 +97,35 @@ _coord_to_blender = util.coord_to_blender()
 _coord_from_blender = util.coord_from_blender()
 
 print("Generating rays")
+# render_poses = torch.stack(
+#     [
+#         _coord_from_blender @ util.pose_spherical(angle, args.elevation, args.radius)
+#         #  util.pose_spherical(angle, args.elevation, args.radius)
+#         for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
+#     ],
+#     0,
+# )  # (NV, 4, 4)
+
+# render_rays = util.gen_rays(render_poses, W, H, focal, z_near, z_far).to(device=device)
+
+c = None
 render_poses = torch.stack(
-    [
-        _coord_from_blender @ util.pose_spherical(angle, args.elevation, args.radius)
-        #  util.pose_spherical(angle, args.elevation, args.radius)
-        for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
-    ],
-    0,
-)  # (NV, 4, 4)
+        [
+            util.pose_spherical(angle, args.elevation, args.radius)
+            for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
+        ],
+        0,
+    )  # (NV, 4, 4)
 
-render_rays = util.gen_rays(render_poses, W, H, focal, z_near, z_far).to(device=device)
-
+render_rays = util.gen_rays(
+    render_poses,
+    W,
+    H,
+    focal * 1,
+    z_near,
+    z_far,
+    c=c * 1 if c is not None else None,
+).to(device=device)
 
 inputs_all = os.listdir(args.input)
 inputs = [
@@ -124,10 +142,17 @@ if len(inputs) == 0:
 
     sys.exit(1)
 
-cam_pose = torch.eye(4, device=device)
-cam_pose[2, -1] = args.radius
-print("SET DUMMY CAMERA")
-print(cam_pose)
+# cam_pose = torch.eye(4, device=device)
+# cam_pose[2, -1] = args.radius
+# print("SET DUMMY CAMERA")
+# print(cam_pose)
+cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+         [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
+         [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
+         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
+
+# My version to regress the true camera extrinsics
+# cam_pose = torch.eye(4, device=device)
 
 image_to_tensor = util.get_image_to_tensor_balanced()
 

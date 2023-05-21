@@ -69,7 +69,7 @@ dset = get_split_dataset(
     args.dataset_format, args.datadir, want_split=args.split, training=False
 )
 
-data = dset[args.subset]
+data = dset[args.subset] # 0 for 03001627/f5643e3b42fe5144c9f41f411b2bb452
 data_path = data["path"]
 print("Data instance loaded:", data_path)
 
@@ -84,6 +84,7 @@ if isinstance(focal, float):
 focal = focal[None]
 
 c = data.get("c")
+print(f"c is {c}")
 if c is not None:
     c = c.to(device=device).unsqueeze(0)
 
@@ -112,6 +113,7 @@ render_par = renderer.bind_parallel(net, args.gpu_id, simple_output=True).eval()
 # Get the distance from camera to origin
 z_near = dset.z_near
 z_far = dset.z_far
+print(f"z_near is {z_near}, z_far is {z_far}")
 
 print("Generating rays")
 
@@ -201,6 +203,11 @@ with torch.no_grad():
     else:
         src_view = source
 
+    cam_pose = torch.eye(4)
+    cam_pose[2, -1] = radius
+    poses[src_view] = cam_pose
+    print(poses[src_view])
+    print(focal, c)
     net.encode(
         images[src_view].unsqueeze(0),
         poses[src_view].unsqueeze(0).to(device=device),

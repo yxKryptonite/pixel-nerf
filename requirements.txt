@@ -8,7 +8,7 @@ imageio-ffmpeg
 tensorboard
 dotmap
 numpy
-scipy
+scipy==1.5.1 # ImportError: /lib/x86_64-linux-gnu/libstdc++.so.6: version `GLIBCXX_3.4.29' not found
 scikit-image
 ipdb
 matplotlib
