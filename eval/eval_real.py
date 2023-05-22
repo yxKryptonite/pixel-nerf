@@ -16,7 +16,9 @@ import torchvision.transforms as T
 import tqdm
 import imageio
 from PIL import Image
+from camera.loss import visual_loss, visual_similarity
 
+SAMPLE_RADIUS_NUM = 10
 
 def extra_args(parser):
     parser.add_argument(
@@ -59,6 +61,9 @@ def extra_args(parser):
         type=int,
         default=40,
         help="Number of video frames (rotated views)",
+    )
+    parser.add_argument(
+        "--scale", type=float, default=1.0, help="Video scale relative to input size"
     )
     parser.add_argument("--fps", type=int, default=30, help="FPS of video")
     parser.add_argument("--gif", action="store_true", help="Store gif instead of mp4")
@@ -108,25 +113,6 @@ print("Generating rays")
 
 # render_rays = util.gen_rays(render_poses, W, H, focal, z_near, z_far).to(device=device)
 
-c = None
-render_poses = torch.stack(
-        [
-            util.pose_spherical(angle, args.elevation, args.radius)
-            for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
-        ],
-        0,
-    )  # (NV, 4, 4)
-
-render_rays = util.gen_rays(
-    render_poses,
-    W,
-    H,
-    focal * 1,
-    z_near,
-    z_far,
-    c=c * 1 if c is not None else None,
-).to(device=device)
-
 inputs_all = os.listdir(args.input)
 inputs = [
     os.path.join(args.input, x) for x in inputs_all # if x.endswith("_normalize.png")
@@ -146,15 +132,64 @@ if len(inputs) == 0:
 # cam_pose[2, -1] = args.radius
 # print("SET DUMMY CAMERA")
 # print(cam_pose)
-cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
-         [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
-         [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
-         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
+# cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+#          [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
+#          [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
+#          [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
 
 # My version to regress the true camera extrinsics
 # cam_pose = torch.eye(4, device=device)
 
 image_to_tensor = util.get_image_to_tensor_balanced()
+
+def render(radius, mode):
+    # cam_pose = torch.eye(4, device=device)
+    # cam_pose[2, -1] = radius
+    # print("SET DUMMY CAMERA")
+    # print(cam_pose)
+    cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+         [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
+         [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
+         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
+    
+    c = None
+    if mode == 'sphere':
+        render_poses = torch.stack(
+                [
+                    util.pose_spherical(angle, args.elevation, radius)
+                    for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
+                ],
+                0,
+            )  # (NV, 4, 4)
+        NV = args.num_views
+    elif mode == 'single':
+        render_poses = cam_pose.unsqueeze(0)
+        NV = 1
+
+    render_rays = util.gen_rays(
+        render_poses,
+        W,
+        H,
+        focal * args.scale,
+        z_near,
+        z_far,
+        c=c * args.scale if c is not None else None,
+    ).to(device=device)
+    
+    net.encode(
+        image.unsqueeze(0), cam_pose.unsqueeze(0), focal,
+    )
+    print("Rendering", args.num_views * H * W, "rays")
+    all_rgb_fine = []
+    for rays in tqdm.tqdm(torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0)):
+        rgb, _depth = render_par(rays[None])
+        all_rgb_fine.append(rgb[0])
+    _depth = None
+    rgb_fine = torch.cat(all_rgb_fine)
+    frames = (rgb_fine.view(NV, H, W, 3).cpu().numpy() * 255).astype(
+        np.uint8
+    )
+    return frames
 
 with torch.no_grad():
     for i, image_path in enumerate(inputs):
@@ -162,20 +197,37 @@ with torch.no_grad():
         image = Image.open(image_path).convert("RGB")
         image = T.Resize(in_sz)(image)
         image = image_to_tensor(image).to(device=device)
-
-        net.encode(
-            image.unsqueeze(0), cam_pose.unsqueeze(0), focal,
-        )
-        print("Rendering", args.num_views * H * W, "rays")
-        all_rgb_fine = []
-        for rays in tqdm.tqdm(torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0)):
-            rgb, _depth = render_par(rays[None])
-            all_rgb_fine.append(rgb[0])
-        _depth = None
-        rgb_fine = torch.cat(all_rgb_fine)
-        frames = (rgb_fine.view(args.num_views, H, W, 3).cpu().numpy() * 255).astype(
-            np.uint8
-        )
+        
+        radius_min = 2
+        radius_max = 4
+        radiuses = [radius_min + (radius_max - radius_min) * i / (SAMPLE_RADIUS_NUM - 1) for i in range(SAMPLE_RADIUS_NUM)]
+        
+        loss_m = 1e10
+        sim_m = -1
+        best_radius = 2.6
+        
+        # for radius in radiuses:
+        #     frames = render(radius=radius, mode='single')
+            
+        #     pred_rgb = torch.tensor(frames[0], dtype=torch.float32, device=device).permute(2, 0, 1)
+        #     gt_rgb = torch.tensor(image, device=device)
+            
+        #     loss = visual_loss(pred_rgb, gt_rgb, device).item()
+        #     similarity = visual_similarity(pred_rgb, gt_rgb, device).item()
+            
+        #     # if loss < loss_m:
+        #     #     print("=============> New loss is", loss)
+        #     #     print("=============> New best pose found!")
+        #     #     best_radius = radius
+        #     #     loss_m = loss
+            
+        #     if similarity > sim_m:
+        #         print("=============> New sim is", similarity)
+        #         print("=============> New best pose found!")
+        #         best_radius = radius
+        #         sim_m = similarity
+            
+        frames = render(best_radius, mode='sphere')
 
         im_name = os.path.basename(os.path.splitext(image_path)[0])
 
