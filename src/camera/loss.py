@@ -1,4 +1,4 @@
 import torch
 
 def pixel_loss(pred, gt):
-    return torch.mean((pred - gt)**2)
+    return torch.nn.functional.mse_loss(pred, gt)

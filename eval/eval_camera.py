@@ -21,7 +21,7 @@ import imageio
 from PIL import Image
 from camera.search import sample_pose_sphere
 from camera.loss import pixel_loss
-SAMPLE_POSE_NUM = 50
+SAMPLE_POSE_NUM = 200
 
 
 def extra_args(parser):
@@ -183,17 +183,17 @@ else:
     render_poses = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
          [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
          [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
-         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device).unsqueeze(0)
+         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
 
-render_rays = util.gen_rays(
-    render_poses,
-    W,
-    H,
-    focal * args.scale,
-    z_near,
-    z_far,
-    c=c * args.scale if c is not None else None,
-).to(device=device)
+# render_rays = util.gen_rays(
+#     render_poses.unsqueeze(0),
+#     W,
+#     H,
+#     focal * args.scale,
+#     z_near,
+#     z_far,
+#     c=c * args.scale if c is not None else None,
+# ).to(device=device)
 # (NV, H, W, 8)
 
 focal = focal.to(device=device)
@@ -207,6 +207,8 @@ if renderer.n_coarse < 64:
     # Ensure decent sampling resolution
     renderer.n_coarse = 64
     renderer.n_fine = 128
+    
+os.makedirs("pred/", exist_ok=True)
 
 with torch.no_grad():
     print("Encoding source view(s)")
@@ -228,10 +230,18 @@ with torch.no_grad():
     cam_pose_best = None # to be predicted
     loss_m = 1e10
     
-    for _ in range(SAMPLE_POSE_NUM):
+    for i in tqdm.tqdm(range(SAMPLE_POSE_NUM)):
         cam_pose = sample_pose_sphere(radius).to(device)
-        print("Reference pose\n", cam_pose_baseline)
-        print("My pose\n", cam_pose)
+        
+        render_rays = util.gen_rays(
+            cam_pose_baseline.unsqueeze(0),
+            W,
+            H,
+            focal * args.scale,
+            z_near,
+            z_far,
+            c=c * args.scale if c is not None else None,
+        ).to(device=device)
     
         # image = Image.open(args.img_path).convert("RGB")
         # image = T.Resize(64)(image)
@@ -246,11 +256,8 @@ with torch.no_grad():
         
         # render one image
 
-        print("Rendering", args.num_views * H * W, "rays")
         all_rgb_fine = []
-        for rays in tqdm.tqdm(
-            torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0)
-        ):
+        for rays in torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0):
             rgb, _depth = render_par(rays[None])
             all_rgb_fine.append(rgb[0])
         _depth = None
@@ -261,26 +268,28 @@ with torch.no_grad():
         
         pred_rgb = frames[0]
         gt_rgb = images[0].permute(1, 2, 0)
-        print(pred_rgb.shape)
-        print(gt_rgb.shape)
-        loss = torch.nn.functional.mse_loss(pred_rgb, gt_rgb).item()
+        loss = pixel_loss(pred_rgb, gt_rgb).item()
         if loss < loss_m:
             loss_m = loss
             cam_pose_best = cam_pose
+            print(cam_pose)
             print("=============> New loss is", loss)
             print("=============> New best pose found!")
+            Image.fromarray((pred_rgb.cpu().numpy() * 255).astype(np.uint8)).save(f"pred/pred_{i}_good.png")
+        else:
+            Image.fromarray((pred_rgb.cpu().numpy() * 255).astype(np.uint8)).save(f"pred/pred_{i}.png")
     
     # exit(0)
 
+    # -----------------
     # render with best pose
-    cam_pose = cam_pose_best
-    print("Reference pose\n", cam_pose_baseline)
-    print("My pose\n", cam_pose)
-    print("loss:", loss_m)
+    # print("Reference pose:\n", cam_pose_baseline)
+    print("Best pose:\n", cam_pose)
+    print("Best loss:", loss_m)
 
     net.encode(
         images[0].unsqueeze(0),
-        cam_pose.unsqueeze(0),
+        cam_pose_best.unsqueeze(0),
         focal,
         c=c,
     )

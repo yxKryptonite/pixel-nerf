@@ -33,11 +33,11 @@ def extra_args(parser):
         default=os.path.join(ROOT_DIR, "output"),
         help="Output directory",
     )
-    parser.add_argument("--size", type=int, default=128, help="Input image maxdim")
+    parser.add_argument("--size", type=int, default=64, help="Input image maxdim")
     parser.add_argument(
         "--out_size",
         type=str,
-        default="128",
+        default="64",
         help="Output image size, either 1 or 2 number (w h)",
     )
 
@@ -57,10 +57,10 @@ def extra_args(parser):
     parser.add_argument(
         "--num_views",
         type=int,
-        default=24,
+        default=40,
         help="Number of video frames (rotated views)",
     )
-    parser.add_argument("--fps", type=int, default=15, help="FPS of video")
+    parser.add_argument("--fps", type=int, default=30, help="FPS of video")
     parser.add_argument("--gif", action="store_true", help="Store gif instead of mp4")
     parser.add_argument(
         "--no_vid",
@@ -129,7 +129,7 @@ render_rays = util.gen_rays(
 
 inputs_all = os.listdir(args.input)
 inputs = [
-    os.path.join(args.input, x) for x in inputs_all if x.endswith("_normalize.png")
+    os.path.join(args.input, x) for x in inputs_all # if x.endswith("_normalize.png")
 ]
 os.makedirs(args.output, exist_ok=True)
 
@@ -168,7 +168,7 @@ with torch.no_grad():
         )
         print("Rendering", args.num_views * H * W, "rays")
         all_rgb_fine = []
-        for rays in tqdm.tqdm(torch.split(render_rays.view(-1, 8), 80000, dim=0)):
+        for rays in tqdm.tqdm(torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0)):
             rgb, _depth = render_par(rays[None])
             all_rgb_fine.append(rgb[0])
         _depth = None

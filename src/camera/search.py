@@ -1,5 +1,7 @@
 import torch
 import numpy as np
+import torch.nn as nn
+np.random.seed(514)
 
 def pose_matrix(p, R):
     T = np.eye(4)
@@ -40,36 +42,12 @@ def sample_pose_sphere(radius):
     
     return torch.tensor(pose_matrix(p, R), dtype=torch.float32)
 
-def naive_search(space_info, image_info, render_info):
-    '''
-    space_info: {
-        angle: float
-        elevation: float
-        scale: float
-        radius: float
-        focal: float
-        z_near: float
-        z_far: float
-    }
-    image_info: {
-        target: torch.Tensor
-    }
-    render_info: {
-        renderer: torch.nn.Module
-        device: torch.device
-    }
+
+class PoseSampler(nn.Module):
+    def __init__(self, radius=2.6):
+        super().__init__()
+        self.radius = radius
+        self.pose = None
     
-    return
-    cam_pose:
-    torch.tensor([[ a, b, c, x ],
-                  [ d, e, f, y ],
-                  [ g, h, i, z ],
-                  [ 0, 0, 0, 1 ]], device=device)
-    '''
-    radius = space_info['radius'] if space_info['radius'] is not None \
-        else (space_info['z_near'] + space_info['z_far']) / 2
-    focal = space_info['focal']
-    scale = space_info['scale']
-    
-    # sample points on a sphere of radius
-    pass
+    def forward(self, batch_size):
+        return sample_pose_sphere(self.radius).repeat(batch_size, 1, 1)
