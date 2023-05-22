@@ -17,8 +17,11 @@ from model import make_model
 from scipy.interpolate import CubicSpline
 import torchvision.transforms as T
 import tqdm
-import imageio.v2 as imageio
+import imageio
 from PIL import Image
+from camera.search import sample_pose_sphere
+from camera.loss import pixel_loss
+SAMPLE_POSE_NUM = 50
 
 
 def extra_args(parser):
@@ -170,13 +173,17 @@ else:
         radius = args.radius
 
     # Use 360 pose sequence from NeRF
-    render_poses = torch.stack(
-        [
-            util.pose_spherical(angle, args.elevation, radius)
-            for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
-        ],
-        0,
-    )  # (NV, 4, 4)
+    # render_poses = torch.stack(
+    #     [
+    #         util.pose_spherical(angle, args.elevation, radius)
+    #         for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
+    #     ],
+    #     0,
+    # )  # (NV, 4, 4)
+    render_poses = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+         [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
+         [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
+         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device).unsqueeze(0)
 
 render_rays = util.gen_rays(
     render_poses,
@@ -213,28 +220,88 @@ with torch.no_grad():
     cam_pose[2, -1] = radius
     poses[src_view] = cam_pose
     
-    cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+    cam_pose_baseline = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
          [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
          [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
          [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
     
-    print(focal, c)
-    # tmp_pose = poses[src_view].unsqueeze(0).to(device=device)
-    tmp_pose = cam_pose.unsqueeze(0)
-    print(tmp_pose.shape)
-    import time
-    time.sleep(5)
+    cam_pose_best = None # to be predicted
+    loss_m = 1e10
     
-    image = Image.open(args.img_path).convert("RGB")
-    image = T.Resize(64)(image)
-    image = image_to_tensor(image).to(device=device)
+    for _ in range(SAMPLE_POSE_NUM):
+        cam_pose = sample_pose_sphere(radius).to(device)
+        print("Reference pose\n", cam_pose_baseline)
+        print("My pose\n", cam_pose)
     
+        # image = Image.open(args.img_path).convert("RGB")
+        # image = T.Resize(64)(image)
+        # image = image_to_tensor(image).to(device=device)
+        
+        net.encode(
+            images[0].unsqueeze(0),
+            cam_pose.unsqueeze(0),
+            focal,
+            c=c,
+        )
+        
+        # render one image
+
+        print("Rendering", args.num_views * H * W, "rays")
+        all_rgb_fine = []
+        for rays in tqdm.tqdm(
+            torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0)
+        ):
+            rgb, _depth = render_par(rays[None])
+            all_rgb_fine.append(rgb[0])
+        _depth = None
+        rgb_fine = torch.cat(all_rgb_fine)
+        # rgb_fine (V*H*W, 3)
+
+        frames = rgb_fine.view(-1, H, W, 3)
+        
+        pred_rgb = frames[0]
+        gt_rgb = images[0].permute(1, 2, 0)
+        print(pred_rgb.shape)
+        print(gt_rgb.shape)
+        loss = torch.nn.functional.mse_loss(pred_rgb, gt_rgb).item()
+        if loss < loss_m:
+            loss_m = loss
+            cam_pose_best = cam_pose
+            print("=============> New loss is", loss)
+            print("=============> New best pose found!")
+    
+    # exit(0)
+
+    # render with best pose
+    cam_pose = cam_pose_best
+    print("Reference pose\n", cam_pose_baseline)
+    print("My pose\n", cam_pose)
+    print("loss:", loss_m)
+
     net.encode(
-        image.unsqueeze(0),
+        images[0].unsqueeze(0),
         cam_pose.unsqueeze(0),
         focal,
         c=c,
     )
+
+    render_poses = torch.stack(
+            [
+                util.pose_spherical(angle, args.elevation, radius)
+                for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
+            ],
+            0,
+        )  # (NV, 4, 4)
+
+    render_rays = util.gen_rays(
+        render_poses,
+        W,
+        H,
+        focal * args.scale,
+        z_near,
+        z_far,
+        c=c * args.scale if c is not None else None,
+    ).to(device=device)
 
     print("Rendering", args.num_views * H * W, "rays")
     all_rgb_fine = []
@@ -248,11 +315,10 @@ with torch.no_grad():
     # rgb_fine (V*H*W, 3)
 
     frames = rgb_fine.view(-1, H, W, 3)
-    
-exit(0)
 
 print("Writing video")
-vid_name = "{:04}".format(args.subset)
+# vid_name = "{:04}".format(args.subset)
+vid_name = 'test'
 if args.split == "test":
     vid_name = "t" + vid_name
 elif args.split == "val":
@@ -266,7 +332,7 @@ imageio.mimwrite(
     vid_path, (frames.cpu().numpy() * 255).astype(np.uint8), fps=args.fps, quality=8
 )
 
-img_np = (images.permute(0, 2, 3, 1) * 0.5 + 0.5).numpy()
+img_np = (images.permute(0, 2, 3, 1) * 0.5 + 0.5).cpu().numpy()
 img_np = (img_np * 255).astype(np.uint8)
 img_np = np.hstack((*img_np,))
 imageio.imwrite(viewimg_path, img_np)

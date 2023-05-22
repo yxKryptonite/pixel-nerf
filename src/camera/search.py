@@ -7,7 +7,7 @@ def pose_matrix(p, R):
     T[:3, 3] = p
     return T
 
-def sample_sphere(radius):
+def sample_pose_sphere(radius):
     '''sample points on a ball'''
     # 生成随机数u和v
     u = np.random.uniform(0, 1)
@@ -38,7 +38,7 @@ def sample_sphere(radius):
     p = np.array([0, 0, radius])
     p = np.dot(R, p)
     
-    return p, R
+    return torch.tensor(pose_matrix(p, R), dtype=torch.float32)
 
 def naive_search(space_info, image_info, render_info):
     '''
@@ -72,12 +72,4 @@ def naive_search(space_info, image_info, render_info):
     scale = space_info['scale']
     
     # sample points on a sphere of radius
-    poses = []
-    POINT_NUM = 200
-    for i in range(POINT_NUM):
-        p, R = sample_sphere(radius)
-        pose = torch.tensor(pose_matrix(p, R))
-        poses.append(pose)
-        
-    for pose in poses:
-        pass
+    pass
