@@ -9,14 +9,14 @@
 ## Changes
 
 - Add `eval/eval_camera.py` to test the correspondence of image quality with camera poses.
-- Reconstruct `eval_real.py` to better evaluate images on real scenes. (Turn original script into `eval_real_original.py`).
-- Take our own photos at `my_input/` and test them with `eval_real.py`.
+- Reconstruct `eval/eval_real.py` to better evaluate images on real scenes. (Turn original script into `eval/eval_real_original.py`).
+- Take our own photos at `my_input/` and test them with `eval/eval_real.py`.
 
 ## Improvement
 
-- Add `src/camera/` to add some search utils and loss functions, including using VGG-16 to measure visual loss and CLIP to measure image feature similarities.
-- Figure out that `radius` is crucial to the image quality and program to search for a good `radius` to improve the render quality.
-- Implement the reference code for single-view 3D reconstruction, fast and reliable!
+- Add `src/camera/` to add some search utils and loss functions, including using VGG-16 to measure visual loss and using CLIP to measure image feature similarities.
+- Figure out that `radius` is crucial to the image quality and implement a searching algorithm for a good `radius` to improve the render quality.
+- Re-implement (to be more specific, debug for original code) the reference code for single-view 3D reconstruction, fast and reliable!
 
 ## Division of Labor
 
