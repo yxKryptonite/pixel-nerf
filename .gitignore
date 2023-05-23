@@ -22,3 +22,5 @@ __pycache__/
 checkpoints/
 visuals/
 logs/
+
+my_output/

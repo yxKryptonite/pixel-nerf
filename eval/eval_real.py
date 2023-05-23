@@ -142,21 +142,24 @@ if len(inputs) == 0:
 
 image_to_tensor = util.get_image_to_tensor_balanced()
 
-def render(radius, mode):
-    # cam_pose = torch.eye(4, device=device)
-    # cam_pose[2, -1] = radius
-    # print("SET DUMMY CAMERA")
+def render(elevation, radius, mode):
+    cam_pose = torch.eye(4, device=device)
+    cam_pose[2, -1] = radius
+    print("SET DUMMY CAMERA")
     # print(cam_pose)
-    cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
-         [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
-         [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
-         [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
+    # cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
+    #      [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
+    #      [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
+    #      [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
+    
+    cam_pose_inv = torch.inverse(cam_pose)
     
     c = None
     if mode == 'sphere':
         render_poses = torch.stack(
                 [
-                    util.pose_spherical(angle, args.elevation, radius)
+                    _coord_from_blender @ 
+                    util.pose_spherical(angle, elevation, radius)
                     for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
                 ],
                 0,
@@ -205,29 +208,8 @@ with torch.no_grad():
         loss_m = 1e10
         sim_m = -1
         best_radius = 2.6
-        
-        # for radius in radiuses:
-        #     frames = render(radius=radius, mode='single')
             
-        #     pred_rgb = torch.tensor(frames[0], dtype=torch.float32, device=device).permute(2, 0, 1)
-        #     gt_rgb = torch.tensor(image, device=device)
-            
-        #     loss = visual_loss(pred_rgb, gt_rgb, device).item()
-        #     similarity = visual_similarity(pred_rgb, gt_rgb, device).item()
-            
-        #     # if loss < loss_m:
-        #     #     print("=============> New loss is", loss)
-        #     #     print("=============> New best pose found!")
-        #     #     best_radius = radius
-        #     #     loss_m = loss
-            
-        #     if similarity > sim_m:
-        #         print("=============> New sim is", similarity)
-        #         print("=============> New best pose found!")
-        #         best_radius = radius
-        #         sim_m = similarity
-            
-        frames = render(best_radius, mode='sphere')
+        frames = render(args.elevation, best_radius, mode='sphere')
 
         im_name = os.path.basename(os.path.splitext(image_path)[0])
 
