@@ -10,7 +10,7 @@
 
 - Add `eval/eval_camera.py` to test the correspondence of image quality with camera poses.
 - Reconstruct `eval/eval_real.py` to better evaluate images on real scenes. (Turn original script into `eval/eval_real_original.py`).
-- Take our own photos at `my_input/` and test them with `eval/eval_real.py`.
+- Take our own photos at `my_input/` and test them with `eval/eval_real.py`, output is at `my_output/`.
 
 ## Improvement
 

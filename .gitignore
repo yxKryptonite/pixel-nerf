@@ -23,5 +23,6 @@ checkpoints/
 visuals/
 logs/
 
-my_output/
+output/
+pred/
 tmp/
