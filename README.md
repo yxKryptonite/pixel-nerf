@@ -18,6 +18,12 @@
 - Figure out that `radius` is crucial to the image quality and implement a searching algorithm for a good `radius` to improve the render quality.
 - Re-implement (to be more specific, debug for original code) the reference code for single-view 3D reconstruction, fast and reliable!
 
+## How to Run
+
+```shell
+python eval/eval_real.py -n sn64 -I my_input -O my_output --gpu_id 5   
+```
+
 ## Division of Labor
 
 *Yuxuan Kuang*: code implementation, experiment design, report writing
