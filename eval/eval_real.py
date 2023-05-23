@@ -142,7 +142,7 @@ if len(inputs) == 0:
 
 image_to_tensor = util.get_image_to_tensor_balanced()
 
-def render(elevation, radius, mode):
+def render(radius, mode):
     cam_pose = torch.eye(4, device=device)
     cam_pose[2, -1] = radius
     print("SET DUMMY CAMERA")
@@ -159,7 +159,7 @@ def render(elevation, radius, mode):
         render_poses = torch.stack(
                 [
                     _coord_from_blender @ 
-                    util.pose_spherical(angle, elevation, radius)
+                    util.pose_spherical(angle, args.elevation, radius)
                     for angle in np.linspace(-180, 180, args.num_views + 1)[:-1]
                 ],
                 0,
@@ -209,7 +209,7 @@ with torch.no_grad():
         sim_m = -1
         best_radius = 2.6
             
-        frames = render(args.elevation, best_radius, mode='sphere')
+        frames = render(best_radius, mode='sphere')
 
         im_name = os.path.basename(os.path.splitext(image_path)[0])
 
