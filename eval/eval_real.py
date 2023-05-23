@@ -16,7 +16,7 @@ import torchvision.transforms as T
 import tqdm
 import imageio
 from PIL import Image
-from camera.loss import visual_loss, visual_similarity
+from camera.loss import vgg_loss, clip_similarity
 
 SAMPLE_RADIUS_NUM = 10
 
@@ -208,6 +208,28 @@ with torch.no_grad():
         loss_m = 1e10
         sim_m = -1
         best_radius = 2.6
+        
+        for radius in radiuses:
+            frames = render(radius=radius, mode='sphere')
+            os.makedirs("tmp/", exist_ok=True)
+            
+            for i in range(args.num_views):
+                frm_path = os.path.join('tmp/', "{:04}.png".format(i))
+                imageio.imwrite(frm_path, frames[i])
+                
+            sim = clip_similarity('tmp/', image_path, device)
+
+            # if loss < loss_m:
+            #     print("=============> New loss is", loss)
+            #     print("=============> New best pose found!")
+            #     best_radius = radius
+            #     loss_m = loss
+
+            if sim > sim_m:
+                print(f"=============> New sim is {sim}")
+                print(f"=============> New best radius {radius} found!")
+                best_radius = radius
+                sim_m = sim
             
         frames = render(best_radius, mode='sphere')
 
