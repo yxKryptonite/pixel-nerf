@@ -13,12 +13,11 @@ import numpy as np
 from model import make_model
 from render import NeRFRenderer
 import torchvision.transforms as T
+import torch.nn.functional as F
 import tqdm
 import imageio
 from PIL import Image
 from camera.loss import vgg_loss, clip_similarity
-
-SAMPLE_RADIUS_NUM = 10
 
 def extra_args(parser):
     parser.add_argument(
@@ -46,6 +45,9 @@ def extra_args(parser):
     parser.add_argument("--focal", type=float, default=119.4256, help="Focal length")
 
     parser.add_argument("--radius", type=float, default=2.6, help="Camera distance")
+    parser.add_argument("--radius_m", type=float, default=2.0)
+    parser.add_argument("--radius_M", type=float, default=5.0)
+    parser.add_argument("--spacing", type=float, default=0.3)
     parser.add_argument("--z_near", type=float, default=1.2)
     parser.add_argument("--z_far", type=float, default=4.0)
 
@@ -147,12 +149,11 @@ def render(radius, mode):
     cam_pose[2, -1] = radius
     print("SET DUMMY CAMERA")
     # print(cam_pose)
-    # cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  2.2854e+00],
-    #      [ 9.6593e-01,  1.2941e-01, -2.2414e-01, -6.1236e-01],
-    #      [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  1.3660e+00],
-    #      [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
-    
-    cam_pose_inv = torch.inverse(cam_pose)
+    # T = F.normalize(torch.Tensor([2.2854e+00, -6.1236e-01, 1.3660e+00]), dim=0) * radius
+    # cam_pose = torch.tensor([[ 2.5882e-01, -4.8296e-01,  8.3652e-01,  T[0]], 
+    #                          [ 9.6593e-01,  1.2941e-01, -2.2414e-01,  T[1]],
+    #                          [ 1.3869e-09,  8.6603e-01,  5.0000e-01,  T[2]],
+    #                          [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]], device=device)
     
     c = None
     if mode == 'sphere':
@@ -182,7 +183,7 @@ def render(radius, mode):
     net.encode(
         image.unsqueeze(0), cam_pose.unsqueeze(0), focal,
     )
-    print("Rendering", args.num_views * H * W, "rays")
+    # print("Rendering", args.num_views * H * W, "rays")
     all_rgb_fine = []
     for rays in tqdm.tqdm(torch.split(render_rays.view(-1, 8), args.ray_batch_size, dim=0)):
         rgb, _depth = render_par(rays[None])
@@ -201,15 +202,19 @@ with torch.no_grad():
         image = T.Resize(in_sz)(image)
         image = image_to_tensor(image).to(device=device)
         
-        radius_min = 2
-        radius_max = 4
-        radiuses = [radius_min + (radius_max - radius_min) * i / (SAMPLE_RADIUS_NUM - 1) for i in range(SAMPLE_RADIUS_NUM)]
+        radius_m = args.radius_m
+        radius_M = args.radius_M
+        spacing = args.spacing
+        sample_num = int((radius_M - radius_m) / spacing)
+        radiuses = [radius_m + j * spacing for j in range(sample_num)]
         
         loss_m = 1e10
         sim_m = -1
         best_radius = 2.6
         
         for radius in radiuses:
+            print("-------------------------------------------")
+            print(f"=============> Now radius is {radius}")
             frames = render(radius=radius, mode='sphere')
             os.makedirs("tmp/", exist_ok=True)
             
@@ -230,7 +235,7 @@ with torch.no_grad():
                 print(f"=============> New best radius {radius} found!")
                 best_radius = radius
                 sim_m = sim
-            
+        
         frames = render(best_radius, mode='sphere')
 
         im_name = os.path.basename(os.path.splitext(image_path)[0])

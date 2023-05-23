@@ -16,7 +16,7 @@
 
 - Add `src/camera/` to add some search utils and loss functions, including using VGG-16 to measure visual loss and using CLIP to measure image feature similarities.
 - Figure out that `radius` is crucial to the image quality and implement a searching algorithm for a good `radius` to improve the render quality.
-- Re-implement (to be more specific, debug for original code) the reference code for single-view 3D reconstruction, fast and reliable!
+- Re-implement (actually debug for original code) the reference code for single-view 3D reconstruction, fast and reliable!
 
 ## How to Run
 
