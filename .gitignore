@@ -23,6 +23,11 @@ checkpoints/
 visuals/
 logs/
 
+# Data
 output/
 pred/
 tmp/
+my_input_tmp/
+my_output_tmp/
+chair/
+chair_result/

@@ -10,7 +10,7 @@ def parse_args(
     callback=None,
     training=False,
     default_conf="conf/default_mv.conf",
-    default_expname="example",
+    default_expname="sn64",
     default_data_format="dvr",
     default_num_epochs=10000000,
     default_lr=1e-4,

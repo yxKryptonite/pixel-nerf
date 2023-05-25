@@ -44,7 +44,7 @@ def extra_args(parser):
 
     parser.add_argument("--focal", type=float, default=119.4256, help="Focal length")
 
-    parser.add_argument("--radius", type=float, default=2.6, help="Camera distance")
+    parser.add_argument("--radius", type=float, default=-1, help="Camera distance") # 2.6
     parser.add_argument("--radius_m", type=float, default=2.0)
     parser.add_argument("--radius_M", type=float, default=5.0)
     parser.add_argument("--spacing", type=float, default=0.3)
@@ -72,7 +72,12 @@ def extra_args(parser):
     parser.add_argument(
         "--no_vid",
         action="store_true",
-        help="Do not store video (only image frames will be written)",
+        help="Do not store video",
+    )
+    parser.add_argument(
+        "--with_frame",
+        action="store_true",
+        help="Store frames",
     )
     return parser
 
@@ -116,6 +121,7 @@ print("Generating rays")
 # render_rays = util.gen_rays(render_poses, W, H, focal, z_near, z_far).to(device=device)
 
 inputs_all = os.listdir(args.input)
+inputs_all.sort()
 inputs = [
     os.path.join(args.input, x) for x in inputs_all # if x.endswith("_normalize.png")
 ]
@@ -129,6 +135,10 @@ if len(inputs) == 0:
     import sys
 
     sys.exit(1)
+    
+txt_path = os.path.join(args.output, "radius.txt")
+with open(txt_path, "w") as f:
+    pass
 
 # cam_pose = torch.eye(4, device=device)
 # cam_pose[2, -1] = args.radius
@@ -212,40 +222,45 @@ with torch.no_grad():
         sim_m = -1
         best_radius = 2.6
         
-        for radius in radiuses:
-            print("-------------------------------------------")
-            print(f"=============> Now radius is {radius}")
-            frames = render(radius=radius, mode='sphere')
-            os.makedirs("tmp/", exist_ok=True)
-            
-            for i in range(args.num_views):
-                frm_path = os.path.join('tmp/', "{:04}.png".format(i))
-                imageio.imwrite(frm_path, frames[i])
+        if args.radius == -1: # default, which means no specification
+            for radius in radiuses:
+                print("-------------------------------------------")
+                print(f"=============> Now radius is {radius}")
+                frames = render(radius=radius, mode='sphere')
+                os.makedirs("tmp/", exist_ok=True)
                 
-            sim = clip_similarity('tmp/', image_path, device)
+                for i in range(args.num_views):
+                    frm_path = os.path.join('tmp/', "{:04}.png".format(i))
+                    imageio.imwrite(frm_path, frames[i])
+                    
+                sim = clip_similarity('tmp/', image_path, device)
 
-            # if loss < loss_m:
-            #     print("=============> New loss is", loss)
-            #     print("=============> New best pose found!")
-            #     best_radius = radius
-            #     loss_m = loss
+                # if loss < loss_m:
+                #     print("=============> New loss is", loss)
+                #     print("=============> New best pose found!")
+                #     best_radius = radius
+                #     loss_m = loss
 
-            if sim > sim_m:
-                print(f"=============> New sim is {sim}")
-                print(f"=============> New best radius {radius} found!")
-                best_radius = radius
-                sim_m = sim
+                if sim > sim_m:
+                    print(f"=============> New sim is {sim}")
+                    print(f"=============> New best radius {radius} found!")
+                    best_radius = radius
+                    sim_m = sim
+                    
+        else:
+            best_radius = args.radius
         
         frames = render(best_radius, mode='sphere')
 
         im_name = os.path.basename(os.path.splitext(image_path)[0])
 
-        frames_dir_name = os.path.join(args.output, im_name + "_frames")
-        os.makedirs(frames_dir_name, exist_ok=True)
+        if args.with_frame:
+            frames_dir_name = os.path.join(args.output, im_name + "_frames")
+            os.makedirs(frames_dir_name, exist_ok=True)
 
-        for i in range(args.num_views):
-            frm_path = os.path.join(frames_dir_name, "{:04}.png".format(i))
-            imageio.imwrite(frm_path, frames[i])
+            for i in range(args.num_views):
+                frm_path = os.path.join(frames_dir_name, "{:04}.png".format(i))
+                imageio.imwrite(frm_path, frames[i])
 
         if not args.no_vid:
             if args.gif:
@@ -255,3 +270,6 @@ with torch.no_grad():
                 vid_path = os.path.join(args.output, im_name + "_vid.mp4")
                 imageio.mimwrite(vid_path, frames, fps=args.fps, quality=8)
         print("Wrote to", vid_path)
+        
+        with open(txt_path, "a") as f:
+            f.write(f"The best radius of {im_name} is {best_radius}\n")

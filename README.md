@@ -20,9 +20,20 @@
 
 ## How to Run
 
+e.g.
+
 ```shell
-python eval/eval_real.py -n sn64 -I my_input -O my_output --gpu_id 5   
+python eval/eval_real.py \
+    -n sn64 \
+    -I my_input \
+    -O my_output \
+    --size 64 \
+    --out_size 64 \
+    --gpu_id 0 \
+    --with_frame
 ```
+
+If you want to specify a radius, add `--radius <radius>`. For other options, see `eval/eval_real.py` and original README.
 
 ## Division of Labor
 
