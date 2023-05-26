@@ -1,8 +1,10 @@
 # pixelNeRF for Computational Photography, Spring 2023
 
+Topic: **NeRF for Sparse Views**
+
 *Yuxuan Kuang* and *Shaofan Sun*
 
-![](readme-img/chair1.gif) ![](readme-img/chair2.gif) ![](readme-img/chair3.gif) ![](readme-img/car1.gif)
+![](readme-img/chair1.gif) ![](readme-img/chair2.gif) ![](readme-img/chair3.gif) ![](readme-img/car1.gif) ![](readme-img/car2.gif) ![](readme-img/car3.gif)
 
 [Original README](./README_original.md)
 
@@ -27,17 +29,15 @@ For example, to test the images of chairs in `my_input/` with `sn64` model, run:
 
 ```shell
 python eval/eval_real.py \
-    -n sn64 \
-    -I my_input \
-    -O my_output \
-    --size 64 \
-    --out_size 64 \
-    --gpu_id 0
+    -n sn64 --gpu_id 0 \ # load pretrained model
+    -I my_input -O my_output \ # input and output directories
+    --size 64 --out_size 64 \ # input and output image size
+    --radius_m 2 --radius_M 5 --spacing 0.3 # search range and step size
 ```
 
 If you want to specify a radius, add `--radius <radius>`. If you want to specify an image file to process (and ignore `-I`), add `-f <filename>`. If you want to save rendered image frames, add `--with_frame`.
 
-When you switch to different categories, you need to change the options above. For better rendering effect, you can also change `--z_near` and `--z_far`.
+When you switch to different categories, you need to change the options above. For better rendering effect, you may also change `--z_near`, `--z_far`, `--focal` and `--elevation`.
 
 For other options, see `eval/eval_real.py` and [original README](./README_original.md).
 
