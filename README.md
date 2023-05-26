@@ -11,6 +11,7 @@
 - Add `eval/eval_camera.py` to test the correspondence of image quality with camera poses.
 - Reconstruct `eval/eval_real.py` to better evaluate images on real scenes. (Turn original script into `eval/eval_real_original.py`).
 - Take our own photos at `my_input/` and test them with `eval/eval_real.py`, output is at `my_output/`.
+- Add `eval/process.sh` script to convert `.mp4` files into **high quality** `.gif` files.
 
 ## Improvement
 
@@ -20,7 +21,7 @@
 
 ## How to Run
 
-e.g.
+For example, to test the images of chairs in `my_input/` with `sn64` model, run:
 
 ```shell
 python eval/eval_real.py \
@@ -29,11 +30,12 @@ python eval/eval_real.py \
     -O my_output \
     --size 64 \
     --out_size 64 \
-    --gpu_id 0 \
-    --with_frame
+    --gpu_id 0
 ```
 
-If you want to specify a radius, add `--radius <radius>`. For other options, see `eval/eval_real.py` and original README.
+If you want to specify a radius, add `--radius <radius>`. If you want to specify an image file to process (and ignore `-I`), add `-f <filename>`. If you want to save rendered image frames, add `--with_frame`.
+
+When you switch to different categories, you need to change the options above. For better rendering effect, you can also change `--z_near` and `--z_far`. For other options, see `eval/eval_real.py` and [original README](./README_original.md).
 
 ## Division of Labor
 

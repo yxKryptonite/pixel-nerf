@@ -34,6 +34,13 @@ def extra_args(parser):
         default=os.path.join(ROOT_DIR, "output"),
         help="Output directory",
     )
+    parser.add_argument(
+        "--filename",
+        "-f",
+        type=str,
+        default=None,
+        help="Specified file to process, if not None, ignore -I",
+    )
     parser.add_argument("--size", type=int, default=64, help="Input image maxdim")
     parser.add_argument(
         "--out_size",
@@ -48,7 +55,7 @@ def extra_args(parser):
     parser.add_argument("--radius_m", type=float, default=2.0)
     parser.add_argument("--radius_M", type=float, default=5.0)
     parser.add_argument("--spacing", type=float, default=0.3)
-    parser.add_argument("--z_near", type=float, default=1.2)
+    parser.add_argument("--z_near", type=float, default=0.8)
     parser.add_argument("--z_far", type=float, default=4.0)
 
     parser.add_argument(
@@ -120,11 +127,15 @@ print("Generating rays")
 
 # render_rays = util.gen_rays(render_poses, W, H, focal, z_near, z_far).to(device=device)
 
-inputs_all = os.listdir(args.input)
-inputs_all.sort()
-inputs = [
-    os.path.join(args.input, x) for x in inputs_all # if x.endswith("_normalize.png")
-]
+if args.filename is None:
+    inputs_all = os.listdir(args.input)
+    inputs_all.sort()
+    inputs = [
+        os.path.join(args.input, x) for x in inputs_all # if x.endswith("_normalize.png")
+    ]
+else:
+    inputs = [args.filename]
+    
 os.makedirs(args.output, exist_ok=True)
 
 if len(inputs) == 0:
