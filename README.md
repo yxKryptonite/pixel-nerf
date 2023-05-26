@@ -21,7 +21,7 @@ Topic: **NeRF for Sparse Views**
 
 - Add `src/camera/` to add some search utils and loss functions, including using VGG-16 to measure visual loss and using CLIP to measure image feature similarities.
 - Figure out that `radius` is crucial to the image quality and implement a searching algorithm for a good `radius` to improve the render quality.
-- Re-implement (actually debug for original code) the reference code for single-view 3D reconstruction, fast and reliable!
+- Re-implement original inference code for single-view 3D reconstruction, fast and reliable!
 
 ## How to Run
 
@@ -37,9 +37,13 @@ python eval/eval_real.py \
 
 If you want to specify a radius, add `--radius <radius>`. If you want to specify an image file to process (and ignore `-I`), add `-f <filename>`. If you want to save rendered image frames, add `--with_frame`.
 
-When you switch to different categories, you need to change the options above. For better rendering effect, you may also change `--z_near`, `--z_far`, `--focal` and `--elevation`.
+When you switch to different categories, you need to change the arguments above. For better rendering effect, you may also change `--z_near`, `--z_far`, `--focal` and `--elevation`.
 
-For other options, see `eval/eval_real.py` and [original README](./README_original.md).
+For other arguments, see `eval/eval_real.py` and [original README](./README_original.md).
+
+## Report
+
+See [report.md](readme-img/report.md).
 
 ## Division of Labor
 
