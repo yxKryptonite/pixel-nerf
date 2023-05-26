@@ -1,7 +1,7 @@
-The best radius of 01 is 2.6
-The best radius of 05 is 2.6
-The best radius of 07 is 2.6
-The best radius of 08 is 2.6
-The best radius of 10 is 2.6
-The best radius of IMG_4527_normalize is 2.6
-The best radius of IMG_4528_normalize is 2.6
+The best radius of 01 is 2.9
+The best radius of 05 is 2.9
+The best radius of 07 is 2.9
+The best radius of 08 is 3.5
+The best radius of 10 is 3.5
+The best radius of IMG_4527_normalize is 3.2
+The best radius of IMG_4528_normalize is 3.2
