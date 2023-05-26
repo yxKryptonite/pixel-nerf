@@ -2,6 +2,8 @@
 
 *Yuxuan Kuang* and *Shaofan Sun*
 
+![](readme-img/chair1.gif) ![](readme-img/chair2.gif) ![](readme-img/chair3.gif) ![](readme-img/car1.gif)
+
 [Original README](./README_original.md)
 
 **Warning: this is not an official product but only a confirmatory repo to realize our ideas. For reproducing our work, you should follow the environment setup of pixelNeRF and install [CLIP](https://github.com/openai/CLIP).**
@@ -35,7 +37,9 @@ python eval/eval_real.py \
 
 If you want to specify a radius, add `--radius <radius>`. If you want to specify an image file to process (and ignore `-I`), add `-f <filename>`. If you want to save rendered image frames, add `--with_frame`.
 
-When you switch to different categories, you need to change the options above. For better rendering effect, you can also change `--z_near` and `--z_far`. For other options, see `eval/eval_real.py` and [original README](./README_original.md).
+When you switch to different categories, you need to change the options above. For better rendering effect, you can also change `--z_near` and `--z_far`.
+
+For other options, see `eval/eval_real.py` and [original README](./README_original.md).
 
 ## Division of Labor
 
