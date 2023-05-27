@@ -131,7 +131,8 @@ if args.filename is None:
     inputs_all = os.listdir(args.input)
     inputs_all.sort()
     inputs = [
-        os.path.join(args.input, x) for x in inputs_all # if x.endswith("_normalize.png")
+        os.path.join(args.input, x) for x in inputs_all \
+            if x.endswith(".png") or x.endswith(".jpg") or x.endswith(".jpeg")
     ]
 else:
     inputs = [args.filename]
@@ -150,6 +151,14 @@ if len(inputs) == 0:
 txt_path = os.path.join(args.output, "radius.txt")
 with open(txt_path, "w") as f:
     pass
+
+from datetime import datetime
+import hashlib
+time_stamp = str(datetime.now())
+md5 = hashlib.md5()
+md5.update(time_stamp.encode("utf-8"))
+tmp_dir_name = "tmp/" + md5.hexdigest()
+os.makedirs(tmp_dir_name, exist_ok=True)
 
 # cam_pose = torch.eye(4, device=device)
 # cam_pose[2, -1] = args.radius
@@ -238,13 +247,12 @@ with torch.no_grad():
                 print("-------------------------------------------")
                 print(f"=============> Now radius is {radius}")
                 frames = render(radius=radius, mode='sphere')
-                os.makedirs("tmp/", exist_ok=True)
                 
                 for i in range(args.num_views):
-                    frm_path = os.path.join('tmp/', "{:04}.png".format(i))
+                    frm_path = os.path.join(tmp_dir_name, "{:04}.png".format(i))
                     imageio.imwrite(frm_path, frames[i])
                     
-                sim = clip_similarity('tmp/', image_path, device)
+                sim = clip_similarity(tmp_dir_name, image_path, device)
 
                 # if loss < loss_m:
                 #     print("=============> New loss is", loss)
@@ -284,3 +292,6 @@ with torch.no_grad():
         
         with open(txt_path, "a") as f:
             f.write(f"The best radius of {im_name} is {best_radius}\n")
+            
+import shutil
+shutil.rmtree(tmp_dir_name, ignore_errors=True)
