@@ -49,4 +49,4 @@ See [report.md](readme-img/report.md).
 
 *Yuxuan Kuang*: code implementation, experiment design, report writing
 
-*Shaofan Sun*: data collection, report writing
+*Shaofan Sun*: data collection, data processing, report writing
